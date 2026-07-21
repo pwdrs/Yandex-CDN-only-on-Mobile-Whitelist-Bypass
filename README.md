@@ -12,11 +12,14 @@
 
 ## ⚡ Быстрая установка
 
-Скачайте и запустите установщик **одной командой**:
+Установщик интерактивный (задаёт вопросы), поэтому **сначала скачайте файл, потом запускайте** — так `read` сможет получать ваш ввод с клавиатуры:
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/pwdrs/Yandex-CDN-only-on-Mobile-Whitelist-Bypass/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/pwdrs/Yandex-CDN-only-on-Mobile-Whitelist-Bypass/main/install.sh -o install.sh
+sudo bash install.sh
 ```
+
+> ⚠️ Не запускайте одной командой через `curl | sudo bash` — при таком запуске `stdin` занят потоком скрипта, а не клавиатурой, и интерактивные вопросы (`read -p`) не получат ввод. Скрипт упадёт сразу после первого запроса.
 
 ---
 
