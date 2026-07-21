@@ -56,20 +56,17 @@ install_deps() {
 ask_questions() {
     echo -e "\n${BOLD}${CYAN}📋 Настройка параметров${NC}\n"
 
-    # Домен
     read -p "🌐 Введите домен вашей VPN‑ноды (например, node.example.com): " DOMAIN
     while [[ -z "$DOMAIN" ]]; do
         read -p "   Домен не может быть пустым. Введите ещё раз: " DOMAIN
     done
 
-    # Email для Caddy (ACME)
     read -p "📧 Введите email администратора (для Let's Encrypt, если используется): " ADMIN_EMAIL
     if [[ -z "$ADMIN_EMAIL" ]]; then
         ADMIN_EMAIL="admin@${DOMAIN#*.}"
         echo -e "${YELLOW}   Использован email по умолчанию: ${ADMIN_EMAIL}${NC}"
     fi
 
-    # Веб-сервер
     echo ""
     echo -e "${BOLD}Выберите веб-сервер:${NC}"
     echo "  1) Nginx (уже установлен, будем настраивать)"
@@ -85,7 +82,6 @@ ask_questions() {
         WEB_SERVER="caddy"
     fi
 
-    # Пути к SSL-сертификатам (только для nginx – в Caddy можно автоматически)
     if [[ "$WEB_SERVER" == "nginx" ]]; then
         echo -e "\n${BOLD}🔒 SSL-сертификат и ключ для origin (CDN → нода)${NC}"
         read -p "   Путь к сертификату [по умолч. /etc/ssl/cdn/origin.crt]: " SSL_CERT
@@ -93,9 +89,7 @@ ask_questions() {
         read -p "   Путь к ключу         [по умолч. /etc/ssl/cdn/origin.key]: " SSL_KEY
         SSL_KEY="${SSL_KEY:-/etc/ssl/cdn/origin.key}"
 
-        # Создаём директорию, если нет
         mkdir -p "$(dirname "$SSL_CERT")" "$(dirname "$SSL_KEY")"
-        # Если файлов нет, генерируем самоподписанный сертификат
         if [[ ! -f "$SSL_CERT" || ! -f "$SSL_KEY" ]]; then
             echo -e "${YELLOW}  ⚠ Сертификат/ключ не найдены. Сгенерирую самоподписанный (для теста).${NC}"
             openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
@@ -122,45 +116,31 @@ ask_questions() {
 }
 
 # ============================================================
-# Скрипт обновления мобильных диапазонов (общая часть)
+# Скрипт обновления мобильных диапазонов
 # ============================================================
 generate_update_script() {
-    local OUTPUT_MODE="$1"   # "nginx" или "caddy"
+    local OUTPUT_MODE="$1"
     local DEST="$2"
 
     cat > "$DEST" << 'INNER_EOF'
 #!/bin/bash
-# Общие ASN мобильных операторов РФ
 MOBILE_ASN=(
-    # MTS
     8359 13174 21365 30922 34351 25086 28884 48100 48400 44391
     47241 34456 50952 51143 206867 198552
-    # Beeline / VimpelCom
     3216 16043 16345 42842 49037 49605 50498 57173 44493 47724 48317
-    # MegaFon
     31133 8263 6854 50928 48615 47395 47218 43841 42891 41976
     35298 34552 31268 31213 31208 31205 31195 31163 29648
     25290 25159 24866 20663 20632 12396 202804
     47829 35357 34974 34702 43213 25490 31286 51547 57311 199226
-    # T2 regional
     12958 15378 42437 48092 48190 41330 39374 13116 41704 34879 39927 51570 57629
-    # Miranda
     201776
-    # Sberbank-Telecom
     206673 48039 209449
-    # Sevastar
     35816
-    # T-mobile + Alfa-mobile
     205638 214257 202498
-    # Volna-Mobile
     203451 203561
-    # MCS
     47204
-    # MOTIV
     31499 31224 31287
-    # Yota
     31257 47542
-    # Tinkoff
     202173 211234
 )
 
@@ -194,7 +174,6 @@ echo "✅ Готово: $(wc -l < __FINAL_FILE__) префиксов"
 __RELOAD_CMD__
 INNER_EOF
 
-    # Подстановка формата вывода и пути/команды перезагрузки
     local FINAL_FILE RELOAD_CMD OUTPUT_FORMAT
     if [[ "$OUTPUT_MODE" == "nginx" ]]; then
         FINAL_FILE="/etc/nginx/mobile-ranges.conf"
@@ -219,15 +198,12 @@ INNER_EOF
 configure_nginx() {
     echo -e "\n${BLUE}➤ Настройка Nginx...${NC}"
 
-    # Скрипт обновления
     generate_update_script "nginx" /usr/local/bin/update-mobile-ranges.sh
     echo -e "${GREEN}  ✓ update-mobile-ranges.sh создан${NC}"
 
-    # Первый запуск для получения префиксов
     echo -e "${YELLOW}  Первичная загрузка мобильных диапазонов...${NC}"
     /usr/local/bin/update-mobile-ranges.sh
 
-    # Конфигурация nginx
     cat > /etc/nginx/sites-enabled/default << NGINXEOF
 log_format mobile '\$time_local | \$http_x_real_ip | \$is_mobile | \$status | \$request';
 
@@ -284,7 +260,6 @@ NGINXEOF
 
     echo -e "${GREEN}  ✓ Конфигурация Nginx записана${NC}"
 
-    # Проверка и перезагрузка
     if nginx -t 2>/dev/null; then
         nginx -s reload
         echo -e "${GREEN}  ✓ Nginx перезагружен${NC}"
@@ -302,18 +277,14 @@ configure_caddy() {
 
     mkdir -p /etc/caddy
 
-    # Скрипт обновления
     generate_update_script "caddy" /usr/local/bin/update-mobile-ranges.sh
     echo -e "${GREEN}  ✓ update-mobile-ranges.sh создан${NC}"
 
-    # Первый запуск
     echo -e "${YELLOW}  Первичная загрузка мобильных диапазонов...${NC}"
     /usr/local/bin/update-mobile-ranges.sh
 
-    # Читаем полученные префиксы
     PREFIXES=$(cat /etc/caddy/mobile-ranges.txt | tr '\n' ' ')
 
-    # Caddyfile
     cat > /etc/caddy/Caddyfile << CADDYEOF
 {
         email ${ADMIN_EMAIL}
@@ -376,7 +347,6 @@ CADDYEOF
 
     echo -e "${GREEN}  ✓ Caddyfile записан${NC}"
 
-    # Валидация и перезагрузка
     if caddy validate --config /etc/caddy/Caddyfile 2>/dev/null; then
         systemctl reload caddy
         echo -e "${GREEN}  ✓ Caddy перезагружен${NC}"
