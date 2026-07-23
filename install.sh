@@ -226,6 +226,11 @@ geo \$http_x_real_ip \$is_mobile {
     include /etc/nginx/mobile-ranges.conf;
 }
 
+map \$request_method \$proxy_method_override {
+    default     \$request_method;
+    OPTIONS     POST;
+}
+
 server {
     listen 80 default_server;
     server_name _;
@@ -259,6 +264,7 @@ server {
             return 403;
         }
         proxy_pass http://127.0.0.1:8003;
+        proxy_method \$proxy_method_override;
         proxy_http_version 1.1;
         proxy_set_header Connection "";
         proxy_set_header Host \$host;
